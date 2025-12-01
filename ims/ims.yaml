@@ -1,0 +1,246 @@
+openapi: 3.0.0
+info:
+  title: Inventory Management System (IMS) API
+  description: API for managing products and inventory in the IMS.
+  version: 1.0.0
+servers:
+  - url: https://api.example.com/v1
+    description: Production Server
+paths:
+  /products:
+    post:
+      summary: Create a new product
+      operationId: createProduct
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProductRequest"
+      responses:
+        "201":
+          description: Product created successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+        "429":
+          description: Too Many Requests
+        "500":
+          description: Internal Server Error
+    get:
+      summary: List products
+      operationId: listProducts
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+          description: Number of items to return
+        - name: next_token
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Pagination token
+      responses:
+        "200":
+          description: List of products
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ListProductsResponse"
+        "401":
+          description: Unauthorized
+        "429":
+          description: Too Many Requests
+        "500":
+          description: Internal Server Error
+
+  /products/{sku}:
+    get:
+      summary: Get a product by SKU
+      operationId: getProduct
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Product SKU
+      responses:
+        "200":
+          description: Product details with inventory
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProductWithInventory"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Product not found
+        "429":
+          description: Too Many Requests
+        "500":
+          description: Internal Server Error
+
+  /inventory/{sku}:
+    get:
+      summary: Get inventory by SKU
+      operationId: getInventory
+      parameters:
+        - name: sku
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Product SKU
+      responses:
+        "200":
+          description: Inventory details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InventoryItem"
+        "401":
+          description: Unauthorized
+        "404":
+          description: Inventory not found
+        "429":
+          description: Too Many Requests
+        "500":
+          description: Internal Server Error
+
+  /inventory/check:
+    post:
+      summary: Check inventory availability
+      operationId: checkInventory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CheckInventoryRequest"
+      responses:
+        "200":
+          description: Inventory availability status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CheckInventoryResponse"
+        "400":
+          description: Invalid input
+        "401":
+          description: Unauthorized
+        "429":
+          description: Too Many Requests
+        "500":
+          description: Internal Server Error
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+
+  schemas:
+    CreateProductRequest:
+      type: object
+      required:
+        - sku
+        - name
+        - price
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        image_url:
+          type: string
+
+    Product:
+      type: object
+      properties:
+        sku:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        image_url:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProductWithInventory:
+      allOf:
+        - $ref: "#/components/schemas/Product"
+        - type: object
+          properties:
+            quantity:
+              type: integer
+
+    ListProductsResponse:
+      type: object
+      properties:
+        products:
+          type: array
+          items:
+            $ref: "#/components/schemas/Product"
+        next_token:
+          type: string
+
+    InventoryItem:
+      type: object
+      properties:
+        sku:
+          type: string
+        quantity:
+          type: integer
+        updated_at:
+          type: string
+          format: date-time
+
+    CheckInventoryRequest:
+      type: object
+      required:
+        - items
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            required:
+              - sku
+              - quantity
+            properties:
+              sku:
+                type: string
+              quantity:
+                type: integer
+
+    CheckInventoryResponse:
+      type: object
+      additionalProperties:
+        type: string
+        enum: [AVAILABLE, UNAVAILABLE]
+
+security:
+  - ApiKeyAuth: []

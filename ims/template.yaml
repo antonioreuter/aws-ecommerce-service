@@ -1,0 +1,258 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Inventory Management System (IMS)
+
+  Serverless architecture for managing inventory and products.
+
+Globals:
+  Function:
+    Timeout: 10
+    MemorySize: 128
+    Runtime: nodejs22.x
+    Architectures:
+      - arm64
+    Environment:
+      Variables:
+        POWERTOOLS_SERVICE_NAME: IMS
+        POWERTOOLS_METRICS_NAMESPACE: Ecommerce
+        LOG_LEVEL: INFO
+
+Resources:
+  # DynamoDB Tables
+  ProductTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-ProductTable
+      AttributeDefinitions:
+        - AttributeName: sku
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sku
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+
+  InventoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-InventoryTable
+      AttributeDefinitions:
+        - AttributeName: sku
+          AttributeType: S
+      KeySchema:
+        - AttributeName: sku
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      SSESpecification:
+        SSEEnabled: true
+
+  ProcessedEventsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub ${AWS::StackName}-ProcessedEventsTable
+      AttributeDefinitions:
+        - AttributeName: order_id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: order_id
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  # SQS Queues
+  InventoryDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-InventoryDLQ
+
+  InventoryQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub ${AWS::StackName}-InventoryQueue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt InventoryDLQ.Arn
+        maxReceiveCount: 3
+
+  # API Gateway
+  ImsApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      StageName: prod
+      Auth:
+        DefaultAuthorizer: AWS_IAM # Placeholder, spec says Custom Lambda Authorizer but we might start simple
+
+  # Lambda Functions
+  CreateProductFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/create-product.handler
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProductTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InventoryTable
+      Events:
+        CreateProduct:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ImsApi
+            Path: /products
+            Method: post
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/create-product.ts
+
+  GetProductFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/get-product.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ProductTable
+        - DynamoDBReadPolicy:
+            TableName: !Ref InventoryTable
+      Events:
+        GetProduct:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ImsApi
+            Path: /products/{sku}
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/get-product.ts
+
+  ListProductsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/list-products.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref ProductTable
+      Events:
+        ListProducts:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ImsApi
+            Path: /products
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/list-products.ts
+
+  GetInventoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/get-inventory.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref InventoryTable
+      Events:
+        GetInventory:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ImsApi
+            Path: /inventory/{sku}
+            Method: get
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/get-inventory.ts
+
+  CheckAvailabilityFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/check-availability.handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref InventoryTable
+      Events:
+        CheckAvailability:
+          Type: Api
+          Properties:
+            RestApiId: !Ref ImsApi
+            Path: /inventory/check
+            Method: post
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/check-availability.ts
+
+  ReserveInventoryFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: .
+      Handler: src/handlers/reserve-inventory.handler
+      Environment:
+        Variables:
+          INVENTORY_TABLE_NAME: !Ref InventoryTable
+          PROCESSED_EVENTS_TABLE_NAME: !Ref ProcessedEventsTable
+          OMS_EVENTS_QUEUE_URL: "PLACEHOLDER_OMS_QUEUE_URL" # Needs to be passed or imported
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref InventoryTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ProcessedEventsTable
+        - SQSSendMessagePolicy:
+            QueueName: "PLACEHOLDER_OMS_QUEUE_NAME" # Needs to be resolved
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt InventoryQueue
+            BatchSize: 10
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+    Metadata:
+      BuildMethod: esbuild
+      BuildProperties:
+        Minify: true
+        Target: "es2020"
+        Sourcemap: true
+        EntryPoints:
+          - src/handlers/reserve-inventory.ts
+
+Outputs:
+  ImsApiUrl:
+    Description: "API Gateway endpoint URL for Prod stage for IMS"
+    Value: !Sub "https://${ImsApi}.execute-api.${AWS::Region}.amazonaws.com/prod/"
+  InventoryQueueUrl:
+    Description: "URL of the Inventory SQS Queue"
+    Value: !Ref InventoryQueue
+  InventoryQueueArn:
+    Description: "ARN of the Inventory SQS Queue"
+    Value: !GetAtt InventoryQueue.Arn

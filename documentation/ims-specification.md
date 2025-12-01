@@ -30,25 +30,28 @@ erDiagram
 ```mermaid
 sequenceDiagram
     participant SQS as IMS Queue
-    participant Lambda as IMS Handler
-    participant IdemDB as ProcessedEvents Table
-    participant InvDB as Inventory Table
-    participant Events as OMS Events Queue
+    participant Handler as IMS Handler
+    participant Service as Inventory Service
+    participant IdemRepo as ProcessedEvents Repo
+    participant InvRepo as Inventory Repo
+    participant Publisher as Event Publisher
 
-    SQS->>Lambda: Trigger (ReserveInventory)
+    SQS->>Handler: Trigger (ReserveInventory)
+    Handler->>Service: reserveInventory(order_id, items)
 
     %% Idempotency Check
-    Lambda->>IdemDB: Get Item (order_id)
+    Service->>IdemRepo: isProcessed(order_id)
     alt Order Already Processed
-        Lambda-->>SQS: Return Success (Ignore)
+        Service-->>Handler: Return
     else New Order
         %% Transactional Update
-        Lambda->>InvDB: TransactWriteItems (Decrement Qty)
+        Service->>InvRepo: reserveItems(items)
         alt Insufficient Stock / Condition Fail
-            Lambda->>Events: Publish (InventoryReservationFailed)
+            Service->>Publisher: publish(InventoryReservationFailed)
+            Service->>IdemRepo: markProcessed(order_id)
         else Success
-            Lambda->>IdemDB: Put Item (order_id, TTL)
-            Lambda->>Events: Publish (InventoryReserved)
+            Service->>Publisher: publish(InventoryReserved)
+            Service->>IdemRepo: markProcessed(order_id)
         end
     end
 ```
