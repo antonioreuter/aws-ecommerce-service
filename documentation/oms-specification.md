@@ -13,7 +13,6 @@ In order to interact with the system, the user must provide a valid API key.
 
 ```mermaid
 erDiagram
-    %% OMS Context
     CUSTOMER ||--o{ ORDER : places
     ORDER ||--|{ ORDER_ITEM : contains
     ORDER ||--o{ DELIVERY : triggers
@@ -31,19 +30,6 @@ erDiagram
         string id PK
         string order_id FK
         string status
-    }
-
-    %% IMS Context
-    PRODUCT ||--|| INVENTORY : tracks
-
-    PRODUCT {
-        string sku PK
-        string name
-        number price
-    }
-    INVENTORY {
-        string sku PK
-        number quantity
     }
 ```
 
@@ -237,9 +223,9 @@ The API must be exposed via API Gateway.
 
 ### SQS
 
-- **IMS-InventoryQueue**: Standard Queue (or FIFO if strict ordering required, but Standard is sufficient with idempotency).
 - **OMS-OrderEventsQueue**: Standard Queue.
-- **DLQ**: Both queues must have a corresponding DLQ.
+- **OMS-OrderEventsDLQ**: Dead Letter Queue for the Order Events Queue.
+- **IMS-InventoryQueue**: Referenced only (Created by IMS).
 
 ### Lambda
 

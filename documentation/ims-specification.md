@@ -8,6 +8,23 @@ Users shall be able to list the inventory, and find the inventory by SKU.
 
 ## System Diagrams
 
+### Entity Relationship Diagram
+
+```mermaid
+erDiagram
+    PRODUCT ||--|| INVENTORY : tracks
+
+    PRODUCT {
+        string sku PK
+        string name
+        number price
+    }
+    INVENTORY {
+        string sku PK
+        number quantity
+    }
+```
+
 ### IMS Reservation Logic
 
 ```mermaid
@@ -81,6 +98,17 @@ flowchart TD
 - `sku`: SKU (String)
 - `quantity`: Number
 - `updated_at`: String (ISO 8601)
+
+### Processed Events Table (`ProcessedEventsTable`)
+
+- **Primary Key**: `order_id` (String)
+- **TTL Attribute**: `ttl` (Number, Unix Timestamp)
+
+**Attributes**:
+
+- `order_id`: Order ID (String)
+- `ttl`: Expiration timestamp
+- `created_at`: String (ISO 8601)
 
 ## Operations & API Specification
 
@@ -183,7 +211,8 @@ flowchart TD
 ### SQS
 
 - **IMS-InventoryQueue**: Standard Queue.
-- **DLQ**: Must have a corresponding DLQ.
+- **IMS-InventoryDLQ**: Dead Letter Queue for the Inventory Queue.
+- **OMS-OrderEventsQueue**: Referenced only (Created by OMS).
 
 ### Lambda
 
