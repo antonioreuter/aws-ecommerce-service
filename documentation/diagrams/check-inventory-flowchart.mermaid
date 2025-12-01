@@ -1,0 +1,15 @@
+flowchart TD
+    A[Start Check Availability] --> B{For each Item}
+    B --> C[Get Inventory Record]
+    C --> D{Record Exists?}
+    D -- No --> E[Mark Unavailable]
+    D -- Yes --> F{Quantity >= Requested?}
+    F -- No --> E
+    F -- Yes --> G[Mark Available]
+    E --> H[Next Item]
+    G --> H
+    H --> I{All Items Checked?}
+    I -- No --> B
+    I -- Yes --> J{Any Unavailable?}
+    J -- Yes --> K[Return UNAVAILABLE]
+    J -- No --> L[Return AVAILABLE]

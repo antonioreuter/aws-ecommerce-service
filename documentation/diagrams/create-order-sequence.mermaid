@@ -1,0 +1,32 @@
+sequenceDiagram
+    participant User
+    participant API as API Gateway
+    participant OMS as OMS Lambda
+    participant DB as Order Table
+    participant SQS as IMS Queue
+    participant IMS as IMS Lambda
+    participant InvDB as Inventory Table
+    participant Events as OMS Events Queue
+
+    User->>API: POST /orders
+    API->>OMS: Invoke CreateOrder
+    OMS->>DB: PutItem (Status: PENDING_INVENTORY)
+    OMS->>SQS: SendMessage (ReserveInventory)
+    OMS-->>API: Return OrderID
+    API-->>User: 201 Created
+
+    SQS->>IMS: Consume Message
+    IMS->>InvDB: Check & Decrement Stock
+    alt Stock Available
+        IMS->>InvDB: Update Quantity
+        IMS->>Events: SendMessage (InventoryReserved)
+    else Stock Unavailable
+        IMS->>Events: SendMessage (InventoryReservationFailed)
+    end
+
+    Events->>OMS: Consume Event
+    alt InventoryReserved
+        OMS->>DB: UpdateItem (Status: CONFIRMED)
+    else InventoryReservationFailed
+        OMS->>DB: UpdateItem (Status: CANCELLED)
+    end

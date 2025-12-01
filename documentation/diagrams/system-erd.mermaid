@@ -1,0 +1,33 @@
+erDiagram
+    %% OMS Context
+    CUSTOMER ||--o{ ORDER : places
+    ORDER ||--|{ ORDER_ITEM : contains
+    ORDER ||--o{ DELIVERY : triggers
+
+    CUSTOMER {
+        string id PK
+        string email
+    }
+    ORDER {
+        string id PK
+        string customer_id FK
+        string status
+    }
+    DELIVERY {
+        string id PK
+        string order_id FK
+        string status
+    }
+
+    %% IMS Context
+    PRODUCT ||--|| INVENTORY : tracks
+
+    PRODUCT {
+        string sku PK
+        string name
+        number price
+    }
+    INVENTORY {
+        string sku PK
+        number quantity
+    }

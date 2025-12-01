@@ -1,0 +1,23 @@
+sequenceDiagram
+    participant SQS as IMS Queue
+    participant Lambda as IMS Handler
+    participant IdemDB as ProcessedEvents Table
+    participant InvDB as Inventory Table
+    participant Events as OMS Events Queue
+
+    SQS->>Lambda: Trigger (ReserveInventory)
+    
+    %% Idempotency Check
+    Lambda->>IdemDB: Get Item (order_id)
+    alt Order Already Processed
+        Lambda-->>SQS: Return Success (Ignore)
+    else New Order
+        %% Transactional Update
+        Lambda->>InvDB: TransactWriteItems (Decrement Qty)
+        alt Insufficient Stock / Condition Fail
+            Lambda->>Events: Publish (InventoryReservationFailed)
+        else Success
+            Lambda->>IdemDB: Put Item (order_id, TTL)
+            Lambda->>Events: Publish (InventoryReserved)
+        end
+    end

@@ -1,0 +1,6 @@
+stateDiagram-v2
+    [*] --> PENDING_INVENTORY: Create Order
+    PENDING_INVENTORY --> CONFIRMED: Inventory Reserved
+    PENDING_INVENTORY --> CANCELLED: Inventory Unavailable
+    CONFIRMED --> [*]
+    CANCELLED --> [*]
